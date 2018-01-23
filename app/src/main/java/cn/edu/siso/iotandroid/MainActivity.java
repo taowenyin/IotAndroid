@@ -1,10 +1,17 @@
 package cn.edu.siso.iotandroid;
 
+import android.os.Handler;
+import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.Socket;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -32,6 +39,12 @@ public class MainActivity extends AppCompatActivity {
     private List<Line> lightLines = null, mcuLines = null;
 
     private Timer dataTimer = null;
+
+    private IotRunnable iotRunnable = null;
+    private Handler handler = null;
+    private static String SERVER_IP = "39.104.87.214";
+
+    public static String TAG = "MainActivity";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -121,6 +134,24 @@ public class MainActivity extends AppCompatActivity {
         mcuViewPort.right = 10;//X轴右边界，变化
         mcuChartView.setCurrentViewport(mcuViewPort);
 
+        handler = new Handler() {
+            @Override
+            public void handleMessage(Message msg) {
+                byte[] data = msg.getData().getByteArray("DATA");
+
+                byte type = data[15];
+                int value = (data[16] << 8) + data[17];
+                if (type == 1) {
+                    Log.i(TAG, "Light = " + value);
+//                    addDataPoint(value, lightChartView);
+                }
+                if (type == 2) {
+                    Log.i(TAG, "MCU = " + value);
+//                    addDataPoint(value, mcuChartView);
+                }
+            }
+        };
+
         testBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -147,6 +178,19 @@ public class MainActivity extends AppCompatActivity {
         serverBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+
+                if (serverBtn.getText().equals("连接服务器")) {
+                    serverBtn.setText("断开服务器");
+
+                    iotRunnable = new IotRunnable(handler); // 创建网络线程
+                    new Thread(iotRunnable).start();
+                } else {
+                    serverBtn.setText("连接服务器");
+                    if (iotRunnable != null) {
+                        iotRunnable.stop();
+                        iotRunnable = null;
+                    }
+                }
 
             }
         });
@@ -190,5 +234,83 @@ public class MainActivity extends AppCompatActivity {
     private int getRandomValue(int begin, int end) {
         Random random = new Random();
         return random.nextInt(end) % (end - begin + 1) + begin;
+    }
+
+    private class IotRunnable implements Runnable {
+
+        private boolean isRunning = true;
+        private Socket clientSocket = null;
+        private Handler handler = null;
+
+        public IotRunnable(Handler handler) {
+            this.handler = handler;
+        }
+
+        public void stop() {
+            isRunning = false;
+            try {
+                clientSocket.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void run() {
+            try {
+                clientSocket = new Socket(SERVER_IP, 8080);
+                byte buffer[] = new byte[1];
+                int dataLength = 0;
+                InputStream clientInput = clientSocket.getInputStream();
+                List<Byte> data = new ArrayList<Byte>();
+
+                boolean isHeader = false, isTail = false, isBeginFrame = false;
+
+                while (isRunning && (dataLength = clientInput.read(buffer)) != -1) {
+                    if (dataLength > 0) {
+                        if (buffer[0] == 'V' && !isBeginFrame) {
+                            isHeader = true;
+                        } else {
+                            if (buffer[0] == '!' && isHeader) {
+                                isBeginFrame = true;
+                                isHeader = false;
+
+                                data.add(((byte) 'V'));
+                            } else {
+                                isHeader = false;
+                            }
+                        }
+                        if (isBeginFrame) {
+                            data.add(buffer[0]);
+                        }
+                        if (buffer[0] == 'S' && isBeginFrame) {
+                            isTail = true;
+                        } else {
+                            if (buffer[0] == '$' && isTail) {
+                                isTail = false;
+                                isBeginFrame = false;
+
+                                Message message = new Message();
+                                Bundle bundle = new Bundle();
+                                byte[] dataArray = new byte[data.size()];
+                                for (int i = 0; i < data.size(); i++) {
+                                    dataArray[i] = data.get(i);
+                                }
+                                bundle.putByteArray("DATA", dataArray);
+                                message.setData(bundle);
+                                handler.sendMessage(message);
+                                data.clear();
+                            } else {
+                                isTail = false;
+                            }
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+
+        }
     }
 }
