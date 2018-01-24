@@ -97,8 +97,8 @@ public class MainActivity extends AppCompatActivity {
         lightAxisX.setHasLines(true).setName("次数（单位：次）").setTextSize(10);
         lightAxisY.setHasLines(true).setName("光照值（单位：流明）").setTextSize(10);
         lightYAxisLabels = new ArrayList<AxisValue>();
-        for (int i = 0; i < 10; i++) {
-            int axisValue = i * 10;
+        for (int i = 0; i <= 20; i++) {
+            int axisValue = i * 5;
             lightYAxisLabels.add(new AxisValue(axisValue).setLabel(String.valueOf(axisValue)));
         }
         lightAxisY.setValues(lightYAxisLabels);
@@ -134,8 +134,8 @@ public class MainActivity extends AppCompatActivity {
         mcuAxisX.setHasLines(true).setName("次数（单位：次）").setTextSize(10);
         mcuAxisY.setHasLines(true).setName("温度值（单位：C）").setTextSize(10);
         mcuYAxisLabels = new ArrayList<AxisValue>();
-        for (int i = 0; i < 10; i++) {
-            int axisValue = i * 10;
+        for (int i = 0; i <= 20; i++) {
+            int axisValue = i * 5;
             mcuYAxisLabels.add(new AxisValue(axisValue).setLabel(String.valueOf(axisValue)));
         }
         mcuAxisY.setValues(mcuYAxisLabels);
@@ -186,8 +186,8 @@ public class MainActivity extends AppCompatActivity {
                         dataTimer.schedule(new TimerTask() {
                             @Override
                             public void run() {
-                                addDataPoint(getRandomValue(10, 100), lightChartView);
-                                addDataPoint(getRandomValue(10, 100), mcuChartView);
+                                addDataPoint(getRandomValue(20, 21), lightChartView);
+                                addDataPoint(getRandomValue(50, 51), mcuChartView);
                             }
                         }, 0, 1000);
                     }
@@ -223,6 +223,14 @@ public class MainActivity extends AppCompatActivity {
 
         data.add(new PointValue(newIndex, value)); // 添加新的数据
         xAxisLabels.add(new AxisValue(newIndex).setLabel(String.valueOf(newIndex))); // 添加X轴标签
+
+        yAxisLabels.clear();
+        for (int i = 0; i <= 20; i++) {
+            int axisValue = i * 5;
+            yAxisLabels.add(new AxisValue(axisValue).setLabel(String.valueOf(axisValue)));
+        }
+        axisY.setHasLines(true);
+        axisY.setValues(yAxisLabels);
 
         axisX.setValues(xAxisLabels);
         dataLine.setValues(data); // 添加数据线的数据
