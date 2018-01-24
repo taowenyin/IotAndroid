@@ -3,4 +3,6 @@
 
     <string name="test_btn_txt">开始测试数据</string>
     <string name="server_btn_txt">连接服务器</string>
+    <string name="server_switch_on">IOT</string>
+    <string name="server_switch_off">模拟</string>
 </resources>

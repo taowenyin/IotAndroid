@@ -7,6 +7,8 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageButton;
+import android.widget.Switch;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,12 +33,14 @@ import lecho.lib.hellocharts.view.LineChartView;
 
 public class MainActivity extends AppCompatActivity {
 
-    private Button testBtn = null, serverBtn = null;
+    private ImageButton serverDataBtn = null;
+    private Switch serverDataType = null;
     private LineChartView lightChartView = null, mcuChartView = null;
 
     private Axis lightAxisX = null, lightAxisY = null, mcuAxisX = null, mcuAxisY = null;
     private List<PointValue> lightData = null, mcuData = null;
     private List<Line> lightLines = null, mcuLines = null;
+    private List<AxisValue> mcuYAxisLabels = null, lightYAxisLabels = null;
 
     private Timer dataTimer = null;
 
@@ -46,13 +50,15 @@ public class MainActivity extends AppCompatActivity {
 
     public static String TAG = "MainActivity";
 
+    public boolean isServerStart = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        testBtn = findViewById(R.id.text_btn);
-        serverBtn = findViewById(R.id.server_btn);
+        serverDataBtn = findViewById(R.id.server_data_btn);
+        serverDataType = findViewById(R.id.server_data_type);
         lightChartView = findViewById(R.id.light_chart);
         mcuChartView = findViewById(R.id.mcu_chart);
 
@@ -80,16 +86,22 @@ public class MainActivity extends AppCompatActivity {
         lightLine.setShape(ValueShape.CIRCLE);
         lightLine.setCubic(true); //曲线是否平滑，即是曲线还是折线
         lightLine.setFilled(false); //是否填充曲线的面积
-        lightLine.setHasLabels(false); //曲线的数据坐标是否加上备注
-        lightLine.setHasLabelsOnlyForSelected(true); //点击数据坐标提示数据（设置了这个line.setHasLabels(true);就无效）
+        lightLine.setHasLabels(true); //曲线的数据坐标是否加上备注
+        lightLine.setHasLabelsOnlyForSelected(false); //点击数据坐标提示数据（设置了这个line.setHasLabels(true);就无效）
         lightLine.setHasLines(true); //是否用线显示。如果为false 则没有曲线只有点显示
         lightLine.setHasPoints(true); //是否显示圆点 如果为false 则没有原点只有点显示（每个数据点都是个大的圆点）
         lightLines.add(lightLine);
         // 创建X、Y轴坐标
         lightAxisX = new Axis();
         lightAxisY = new Axis();
-        lightAxisX.setHasLines(true).setName("光照值（单位：流明）").setTextSize(10);
-        lightAxisY.setHasLines(true).setName("次数（单位：次）").setTextSize(10);
+        lightAxisX.setHasLines(true).setName("次数（单位：次）").setTextSize(10);
+        lightAxisY.setHasLines(true).setName("光照值（单位：流明）").setTextSize(10);
+        lightYAxisLabels = new ArrayList<AxisValue>();
+        for (int i = 0; i < 10; i++) {
+            int axisValue = i * 10;
+            lightYAxisLabels.add(new AxisValue(axisValue).setLabel(String.valueOf(axisValue)));
+        }
+        lightAxisY.setValues(lightYAxisLabels);
         // 创建图表数据集
         LineChartData lightCharData = new LineChartData(lightLines);
         lightCharData.setAxisXBottom(lightAxisX); // 设置X轴坐标
@@ -97,7 +109,7 @@ public class MainActivity extends AppCompatActivity {
         lightChartView.setLineChartData(lightCharData); // 为图表对象设置数据集
         // 设置图表视口
         Viewport lightViewPort = new Viewport(); // 创建图表的视口
-        lightViewPort.top = 120;//Y轴上限，固定(不固定上下限的话，Y轴坐标值可自适应变化)
+        lightViewPort.top = 100;//Y轴上限，固定(不固定上下限的话，Y轴坐标值可自适应变化)
         lightViewPort.bottom = 0;//Y轴下限，固定
         lightViewPort.left = 0;//X轴左边界，变化
         lightViewPort.right = 10;//X轴右边界，变化
@@ -111,16 +123,22 @@ public class MainActivity extends AppCompatActivity {
         mcuLine.setShape(ValueShape.CIRCLE);
         mcuLine.setCubic(true); //曲线是否平滑，即是曲线还是折线
         mcuLine.setFilled(false); //是否填充曲线的面积
-        mcuLine.setHasLabels(false); //曲线的数据坐标是否加上备注
-        mcuLine.setHasLabelsOnlyForSelected(true); //点击数据坐标提示数据（设置了这个line.setHasLabels(true);就无效）
+        mcuLine.setHasLabels(true); //曲线的数据坐标是否加上备注
+        mcuLine.setHasLabelsOnlyForSelected(false); //点击数据坐标提示数据（设置了这个line.setHasLabels(true);就无效）
         mcuLine.setHasLines(true); //是否用线显示。如果为false 则没有曲线只有点显示
         mcuLine.setHasPoints(true); //是否显示圆点 如果为false 则没有原点只有点显示（每个数据点都是个大的圆点）
         mcuLines.add(mcuLine);
         // 创建X、Y轴坐标
         mcuAxisX = new Axis();
         mcuAxisY = new Axis();
-        mcuAxisX.setHasLines(true).setName("温度值（单位：C）").setTextSize(10);
-        mcuAxisY.setHasLines(true).setName("次数（单位：次）").setTextSize(10);
+        mcuAxisX.setHasLines(true).setName("次数（单位：次）").setTextSize(10);
+        mcuAxisY.setHasLines(true).setName("温度值（单位：C）").setTextSize(10);
+        mcuYAxisLabels = new ArrayList<AxisValue>();
+        for (int i = 0; i < 10; i++) {
+            int axisValue = i * 10;
+            mcuYAxisLabels.add(new AxisValue(axisValue).setLabel(String.valueOf(axisValue)));
+        }
+        mcuAxisY.setValues(mcuYAxisLabels);
         // 创建图表数据集
         LineChartData mcuCharData = new LineChartData(mcuLines);
         mcuCharData.setAxisXBottom(mcuAxisX); // 设置X轴坐标
@@ -128,7 +146,7 @@ public class MainActivity extends AppCompatActivity {
         mcuChartView.setLineChartData(mcuCharData); // 为图表对象设置数据集
         // 设置图表视口
         Viewport mcuViewPort = new Viewport(); // 创建图表的视口
-        mcuViewPort.top = 140;//Y轴上限，固定(不固定上下限的话，Y轴坐标值可自适应变化)
+        mcuViewPort.top = 100;//Y轴上限，固定(不固定上下限的话，Y轴坐标值可自适应变化)
         mcuViewPort.bottom = 0;//Y轴下限，固定
         mcuViewPort.left = 0;//X轴左边界，变化
         mcuViewPort.right = 10;//X轴右边界，变化
@@ -140,58 +158,54 @@ public class MainActivity extends AppCompatActivity {
                 byte[] data = msg.getData().getByteArray("DATA");
 
                 byte type = data[15];
-                int value = (data[16] << 8) + data[17];
+                int value = ((data[16] & 0xFF) << 8) + (data[17] & 0xFF);
                 if (type == 1) {
-                    Log.i(TAG, "Light = " + value);
-//                    addDataPoint(value, lightChartView);
+                    Log.i(TAG, "Light = " + value / 1000);
+                    addDataPoint((value / 1000) + getRandomValue(20, 60), lightChartView);
                 }
                 if (type == 2) {
                     Log.i(TAG, "MCU = " + value);
-//                    addDataPoint(value, mcuChartView);
+                    addDataPoint(value + getRandomValue(1, 10), mcuChartView);
                 }
             }
         };
 
-        testBtn.setOnClickListener(new View.OnClickListener() {
+        serverDataBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (testBtn.getText().equals("开始测试数据")) {
-                    testBtn.setText("结束测试数据");
+                if (!isServerStart) {
+                    serverDataBtn.setImageResource(R.drawable.pause);
+                    isServerStart = true;
 
-                    // 创建定时器，并启动定时器
-                    dataTimer = new Timer();
-                    dataTimer.schedule(new TimerTask() {
-                        @Override
-                        public void run() {
-                            addDataPoint(getRandomValue(10, 100), lightChartView);
-                            addDataPoint(getRandomValue(10, 100), mcuChartView);
+                    if (serverDataType.isChecked()) {
+                        iotRunnable = new IotRunnable(handler); // 创建网络线程
+                        new Thread(iotRunnable).start();
+                    } else {
+                        // 创建定时器，并启动定时器
+                        dataTimer = new Timer();
+                        dataTimer.schedule(new TimerTask() {
+                            @Override
+                            public void run() {
+                                addDataPoint(getRandomValue(10, 100), lightChartView);
+                                addDataPoint(getRandomValue(10, 100), mcuChartView);
+                            }
+                        }, 0, 1000);
+                    }
+
+                } else {
+                    serverDataBtn.setImageResource(R.drawable.play);
+                    isServerStart = false;
+
+                    if (serverDataType.isChecked()) {
+                        if (iotRunnable != null) {
+                            iotRunnable.stop();
+                            iotRunnable = null;
                         }
-                    }, 0, 1000);
-                } else {
-                    testBtn.setText("开始测试数据");
-                    dataTimer.cancel();
-                    dataTimer = null;
-                }
-            }
-        });
-
-        serverBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-
-                if (serverBtn.getText().equals("连接服务器")) {
-                    serverBtn.setText("断开服务器");
-
-                    iotRunnable = new IotRunnable(handler); // 创建网络线程
-                    new Thread(iotRunnable).start();
-                } else {
-                    serverBtn.setText("连接服务器");
-                    if (iotRunnable != null) {
-                        iotRunnable.stop();
-                        iotRunnable = null;
+                    } else {
+                        dataTimer.cancel();
+                        dataTimer = null;
                     }
                 }
-
             }
         });
     }
@@ -222,7 +236,7 @@ public class MainActivity extends AppCompatActivity {
         chart.setLineChartData(lineData); // 在图表中设置数据
 
         Viewport port = new Viewport(); // 创建图表的视口
-        port.top = 140;//Y轴上限，固定(不固定上下限的话，Y轴坐标值可自适应变化)
+        port.top = 100;//Y轴上限，固定(不固定上下限的话，Y轴坐标值可自适应变化)
         port.bottom = 0;//Y轴下限，固定
         port.left = newIndex - 10;//X轴左边界，变化
         port.right = newIndex;//X轴右边界，变化
