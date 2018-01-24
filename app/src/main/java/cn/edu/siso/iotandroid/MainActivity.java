@@ -8,6 +8,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageButton;
+import android.widget.RadioGroup;
 import android.widget.Switch;
 
 import java.io.IOException;
@@ -34,7 +35,8 @@ import lecho.lib.hellocharts.view.LineChartView;
 public class MainActivity extends AppCompatActivity {
 
     private ImageButton serverDataBtn = null;
-    private Switch serverDataType = null;
+//    private Switch serverDataType = null;
+    private RadioGroup serverDataType = null;
     private LineChartView lightChartView = null, mcuChartView = null;
 
     private Axis lightAxisX = null, lightAxisY = null, mcuAxisX = null, mcuAxisY = null;
@@ -177,10 +179,11 @@ public class MainActivity extends AppCompatActivity {
                     serverDataBtn.setImageResource(R.drawable.pause);
                     isServerStart = true;
 
-                    if (serverDataType.isChecked()) {
+                    if (serverDataType.getCheckedRadioButtonId() == R.id.iot_data) {
                         iotRunnable = new IotRunnable(handler); // 创建网络线程
                         new Thread(iotRunnable).start();
-                    } else {
+                    }
+                    if (serverDataType.getCheckedRadioButtonId() == R.id.emulator_data) {
                         // 创建定时器，并启动定时器
                         dataTimer = new Timer();
                         dataTimer.schedule(new TimerTask() {
@@ -196,12 +199,13 @@ public class MainActivity extends AppCompatActivity {
                     serverDataBtn.setImageResource(R.drawable.play);
                     isServerStart = false;
 
-                    if (serverDataType.isChecked()) {
+                    if (serverDataType.getCheckedRadioButtonId() == R.id.iot_data) {
                         if (iotRunnable != null) {
                             iotRunnable.stop();
                             iotRunnable = null;
                         }
-                    } else {
+                    }
+                    if (serverDataType.getCheckedRadioButtonId() == R.id.emulator_data) {
                         dataTimer.cancel();
                         dataTimer = null;
                     }
