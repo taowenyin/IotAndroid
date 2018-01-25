@@ -1,5 +1,6 @@
 package cn.edu.siso.iotandroid;
 
+import android.graphics.Color;
 import android.os.Handler;
 import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
@@ -10,6 +11,7 @@ import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.RadioGroup;
 import android.widget.Switch;
+import android.widget.Toast;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,15 +36,17 @@ import lecho.lib.hellocharts.view.LineChartView;
 
 public class MainActivity extends AppCompatActivity {
 
-    private ImageButton serverDataBtn = null;
-//    private Switch serverDataType = null;
+    private ImageButton serverDataBtn = null, serverClearBtn = null;
     private RadioGroup serverDataType = null;
     private LineChartView lightChartView = null, mcuChartView = null;
 
-    private Axis lightAxisX = null, lightAxisY = null, mcuAxisX = null, mcuAxisY = null;
-    private List<PointValue> lightData = null, mcuData = null;
-    private List<Line> lightLines = null, mcuLines = null;
-    private List<AxisValue> mcuYAxisLabels = null, lightYAxisLabels = null;
+    private static int addMcuDataTimes = 0; // 添加数据的次数
+    private static int addLightDataTimes = 0; // 添加数据的次数
+
+    public static final int MAX_POINTS_COUNT = 10; // 页面中点的个数
+    public static final int CHART_TRANSPARENCY = 20; // 填充的透明度
+    public static final int Y_AXIS_MAX_COUNT = 12; // Y轴点最大值数量
+    public static final int Y_AXIS_MAX_VALUE = Y_AXIS_MAX_COUNT * 10; // Y轴最大值
 
     private Timer dataTimer = null;
 
@@ -60,98 +64,93 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         serverDataBtn = findViewById(R.id.server_data_btn);
+        serverClearBtn = findViewById(R.id.server_clear_btn);
         serverDataType = findViewById(R.id.server_data_type);
         lightChartView = findViewById(R.id.light_chart);
         mcuChartView = findViewById(R.id.mcu_chart);
 
-        lightChartView.setInteractive(false);//设置不可交互
-        lightChartView.setScrollEnabled(true);
-        lightChartView.setValueTouchEnabled(false);
-        lightChartView.setFocusableInTouchMode(false);
-        lightChartView.setViewportCalculationEnabled(true);
-        lightChartView.setContainerScrollEnabled(true, ContainerScrollType.HORIZONTAL);
-        lightChartView.startDataAnimation();
+        /**
+         * 光照数据表的初始化
+         */
 
-        mcuChartView.setInteractive(false);//设置不可交互
-        mcuChartView.setScrollEnabled(true);
-        mcuChartView.setValueTouchEnabled(false);
-        mcuChartView.setFocusableInTouchMode(false);
-        mcuChartView.setViewportCalculationEnabled(true);
-        mcuChartView.setContainerScrollEnabled(true, ContainerScrollType.HORIZONTAL);
-        mcuChartView.startDataAnimation();
-
-        // 创建光照图表数据线
-        lightLines = new ArrayList<Line>();
-        lightData = new ArrayList<PointValue>();
-        Line lightLine = new Line(lightData);
+        // 创建光照的数据线
+        List<Line> lightLines = new ArrayList<Line>(); // 数据线集合
+        List<PointValue> lightData = new ArrayList<PointValue>(); // 数据点集合
+        Line lightLine = new Line();
         lightLine.setColor(ChartUtils.COLORS[0]);
-        lightLine.setShape(ValueShape.CIRCLE);
-        lightLine.setCubic(true); //曲线是否平滑，即是曲线还是折线
-        lightLine.setFilled(false); //是否填充曲线的面积
-        lightLine.setHasLabels(true); //曲线的数据坐标是否加上备注
-        lightLine.setHasLabelsOnlyForSelected(false); //点击数据坐标提示数据（设置了这个line.setHasLabels(true);就无效）
-        lightLine.setHasLines(true); //是否用线显示。如果为false 则没有曲线只有点显示
-        lightLine.setHasPoints(true); //是否显示圆点 如果为false 则没有原点只有点显示（每个数据点都是个大的圆点）
+        lightLine.setValues(lightData);
         lightLines.add(lightLine);
-        // 创建X、Y轴坐标
-        lightAxisX = new Axis();
-        lightAxisY = new Axis();
-        lightAxisX.setHasLines(true).setName("次数（单位：次）").setTextSize(10);
-        lightAxisY.setHasLines(true).setName("光照值（单位：流明）").setTextSize(10);
-        lightYAxisLabels = new ArrayList<AxisValue>();
-        for (int i = 0; i <= 20; i++) {
-            int axisValue = i * 5;
-            lightYAxisLabels.add(new AxisValue(axisValue).setLabel(String.valueOf(axisValue)));
+
+        // 创建光照的X、Y轴坐标
+        Axis lightAxisX = new Axis();
+        Axis lightAxisY = new Axis();
+        lightAxisX.setHasLines(true).setName("次数（单位：次）").setTextColor(Color.parseColor("#000000"));
+        lightAxisY.setName("光照值（单位：流明）").setTextColor(Color.parseColor("#000000"));
+        List<AxisValue> lightYAxisLabels = new ArrayList<AxisValue>();
+        for (int i = 0; i <= Y_AXIS_MAX_COUNT; i++) {
+            int yValue = i * 10;
+            lightYAxisLabels.add(new AxisValue(yValue).setLabel(String.valueOf(yValue)).setValue(yValue));
         }
         lightAxisY.setValues(lightYAxisLabels);
+
         // 创建图表数据集
-        LineChartData lightCharData = new LineChartData(lightLines);
+        LineChartData lightCharData = new LineChartData();
         lightCharData.setAxisXBottom(lightAxisX); // 设置X轴坐标
         lightCharData.setAxisYLeft(lightAxisY); // 设置Y坐标
+        lightCharData.setLines(lightLines);
+        lightCharData.setBaseValue(Float.NEGATIVE_INFINITY);
+
         lightChartView.setLineChartData(lightCharData); // 为图表对象设置数据集
+
         // 设置图表视口
-        Viewport lightViewPort = new Viewport(); // 创建图表的视口
-        lightViewPort.top = 100;//Y轴上限，固定(不固定上下限的话，Y轴坐标值可自适应变化)
-        lightViewPort.bottom = 0;//Y轴下限，固定
-        lightViewPort.left = 0;//X轴左边界，变化
-        lightViewPort.right = 10;//X轴右边界，变化
+        Viewport lightViewPort = new Viewport(lightChartView.getMaximumViewport()); // 创建图表的视口
+        lightViewPort.top = Y_AXIS_MAX_VALUE;
+        lightViewPort.bottom = 0;
+        lightViewPort.left = 0;
+        lightViewPort.right = MAX_POINTS_COUNT - 1;
+        lightChartView.setMaximumViewport(lightViewPort);
         lightChartView.setCurrentViewport(lightViewPort);
 
+        /**
+         * MCU温度数据表的初始化
+         */
+
         // 创建光照图表数据线
-        mcuLines = new ArrayList<Line>();
-        mcuData = new ArrayList<PointValue>();
-        Line mcuLine = new Line(mcuData);
+        List<Line> mcuLines = new ArrayList<Line>();
+        List<PointValue> mcuData = new ArrayList<PointValue>();
+        Line mcuLine = new Line();
         mcuLine.setColor(ChartUtils.COLORS[1]);
-        mcuLine.setShape(ValueShape.CIRCLE);
-        mcuLine.setCubic(true); //曲线是否平滑，即是曲线还是折线
-        mcuLine.setFilled(false); //是否填充曲线的面积
-        mcuLine.setHasLabels(true); //曲线的数据坐标是否加上备注
-        mcuLine.setHasLabelsOnlyForSelected(false); //点击数据坐标提示数据（设置了这个line.setHasLabels(true);就无效）
-        mcuLine.setHasLines(true); //是否用线显示。如果为false 则没有曲线只有点显示
-        mcuLine.setHasPoints(true); //是否显示圆点 如果为false 则没有原点只有点显示（每个数据点都是个大的圆点）
+        mcuLine.setValues(mcuData);
         mcuLines.add(mcuLine);
+
         // 创建X、Y轴坐标
-        mcuAxisX = new Axis();
-        mcuAxisY = new Axis();
-        mcuAxisX.setHasLines(true).setName("次数（单位：次）").setTextSize(10);
-        mcuAxisY.setHasLines(true).setName("温度值（单位：C）").setTextSize(10);
-        mcuYAxisLabels = new ArrayList<AxisValue>();
-        for (int i = 0; i <= 20; i++) {
-            int axisValue = i * 5;
-            mcuYAxisLabels.add(new AxisValue(axisValue).setLabel(String.valueOf(axisValue)));
+        Axis mcuAxisX = new Axis();
+        Axis mcuAxisY = new Axis();
+        mcuAxisX.setHasLines(true).setName("次数（单位：次）").setTextColor(Color.parseColor("#000000"));
+        mcuAxisY.setName("温度值（单位：C）").setTextColor(Color.parseColor("#000000"));
+        List<AxisValue> mcuYAxisLabels = new ArrayList<AxisValue>();
+        for (int i = 0; i <= Y_AXIS_MAX_COUNT; i++) {
+            int yValue = i * 10;
+            mcuYAxisLabels.add(new AxisValue(yValue).setLabel(String.valueOf(yValue)).setValue(yValue));
         }
         mcuAxisY.setValues(mcuYAxisLabels);
+
         // 创建图表数据集
-        LineChartData mcuCharData = new LineChartData(mcuLines);
+        LineChartData mcuCharData = new LineChartData();
         mcuCharData.setAxisXBottom(mcuAxisX); // 设置X轴坐标
         mcuCharData.setAxisYLeft(mcuAxisY); // 设置Y坐标
+        mcuCharData.setLines(mcuLines);
+        mcuCharData.setBaseValue(Float.NEGATIVE_INFINITY);
+
         mcuChartView.setLineChartData(mcuCharData); // 为图表对象设置数据集
+
         // 设置图表视口
-        Viewport mcuViewPort = new Viewport(); // 创建图表的视口
-        mcuViewPort.top = 100;//Y轴上限，固定(不固定上下限的话，Y轴坐标值可自适应变化)
-        mcuViewPort.bottom = 0;//Y轴下限，固定
-        mcuViewPort.left = 0;//X轴左边界，变化
-        mcuViewPort.right = 10;//X轴右边界，变化
+        Viewport mcuViewPort = new Viewport(mcuChartView.getMaximumViewport()); // 创建图表的视口
+        mcuViewPort.top = Y_AXIS_MAX_VALUE;
+        mcuViewPort.bottom = 0;
+        mcuViewPort.left = 0;
+        mcuViewPort.right = MAX_POINTS_COUNT - 1;
+        mcuChartView.setMaximumViewport(mcuViewPort);
         mcuChartView.setCurrentViewport(mcuViewPort);
 
         handler = new Handler() {
@@ -163,11 +162,11 @@ public class MainActivity extends AppCompatActivity {
                 int value = ((data[16] & 0xFF) << 8) + (data[17] & 0xFF);
                 if (type == 1) {
                     Log.i(TAG, "Light = " + value / 1000);
-                    addDataPoint((value / 1000) + getRandomValue(20, 60), lightChartView);
+                    addDataPoint((value / 1000), addLightDataTimes++, lightChartView);
                 }
                 if (type == 2) {
                     Log.i(TAG, "MCU = " + value);
-                    addDataPoint(value + getRandomValue(1, 10), mcuChartView);
+                    addDataPoint(value, addMcuDataTimes++, mcuChartView);
                 }
             }
         };
@@ -189,8 +188,8 @@ public class MainActivity extends AppCompatActivity {
                         dataTimer.schedule(new TimerTask() {
                             @Override
                             public void run() {
-                                addDataPoint(getRandomValue(20, 21), lightChartView);
-                                addDataPoint(getRandomValue(50, 51), mcuChartView);
+                                addDataPoint(getRandomValue(0, 100), addLightDataTimes++, lightChartView);
+                                addDataPoint(getRandomValue(0, 100), addMcuDataTimes++, mcuChartView);
                             }
                         }, 0, 1000);
                     }
@@ -212,49 +211,112 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+
+        serverClearBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (isServerStart) {
+                    Toast.makeText(getApplicationContext(), "先停止数据接收", Toast.LENGTH_LONG).show();
+                } else {
+                    resetDataPoint(lightChartView);
+                    resetDataPoint(mcuChartView);
+                }
+            }
+        });
     }
 
-    private void addDataPoint(int value, LineChartView chart) {
-        Line dataLine = chart.getLineChartData().getLines().get(0); // 获取数据线
-        Axis axisX = chart.getChartData().getAxisXBottom(); // 获取X轴坐标
-        Axis axisY = chart.getChartData().getAxisYLeft(); // 获取Y轴坐标
+    private void resetDataPoint(LineChartView chart) {
+        Line line = chart.getLineChartData().getLines().get(0); // 获取当前图表的数据线
+        Axis axisX = chart.getChartData().getAxisXBottom(); // 获取X坐标
+        Axis axisY = chart.getChartData().getAxisYLeft(); // 获取Y坐标
 
-        List<PointValue> data = dataLine.getValues(); // 获取数据线的数据集
-        List<AxisValue> xAxisLabels = axisX.getValues();
-        List<AxisValue> yAxisLabels = axisY.getValues();
+        List<PointValue> data = line.getValues(); // 获取数据线的点序列
+        List<AxisValue> axisXLabels = axisX.getValues(); // 获取X坐标的点序列
 
-        int newIndex = data.size(); // 获取新数据要添加的索引
+        data.clear();
+        axisXLabels.clear();
 
-        data.add(new PointValue(newIndex, value)); // 添加新的数据
-        xAxisLabels.add(new AxisValue(newIndex).setLabel(String.valueOf(newIndex))); // 添加X轴标签
+        line.setValues(data); // 设置数据线的新值
+        axisX.setValues(axisXLabels);
 
-        yAxisLabels.clear();
-        for (int i = 0; i <= 20; i++) {
-            int axisValue = i * 5;
-            yAxisLabels.add(new AxisValue(axisValue).setLabel(String.valueOf(axisValue)));
+        List<Line> lines = new ArrayList<Line>();
+        lines.add(line);
+        LineChartData lineChartData = new LineChartData(lines);
+        lineChartData.setAxisYLeft(axisY);
+        lineChartData.setAxisXBottom(axisX);
+        lineChartData.setBaseValue(Float.NEGATIVE_INFINITY);
+        lineChartData.setValueLabelBackgroundEnabled(false);
+        lineChartData.setValueLabelsTextColor(line.getColor());
+        chart.setLineChartData(lineChartData);
+
+        Viewport v = new Viewport(chart.getCurrentViewport());
+        v.bottom = 0;
+        v.top = Y_AXIS_MAX_VALUE;
+        v.left = 0;
+        v.right = MAX_POINTS_COUNT - 1;
+        chart.setMaximumViewport(v);
+        chart.setCurrentViewport(v);
+
+        addMcuDataTimes = 0;
+        addLightDataTimes = 0;
+    }
+
+    private void addDataPoint(int value, int times, LineChartView chart) {
+        Line line = chart.getLineChartData().getLines().get(0); // 获取当前图表的数据线
+        Axis axisX = chart.getChartData().getAxisXBottom(); // 获取X坐标
+        Axis axisY = chart.getChartData().getAxisYLeft(); // 获取Y坐标
+
+        List<PointValue> data = line.getValues(); // 获取数据线的点序列
+        List<AxisValue> axisXLabels = axisX.getValues(); // 获取X坐标的点序列
+
+        /**
+         * 当图表中的点数量大于最大值时就需要进行删除头部的点
+         */
+        if (times >= MAX_POINTS_COUNT) {
+            data.remove(0); // 从数据点序列中移除头部的点
+            axisXLabels.remove(0); // 从X坐标序列中移除头部的点
+
+            // 修改旧数据点的X值，全都往前移动一个
+            for (int i = 0; i < MAX_POINTS_COUNT - 1; i++) {
+                data.get(i).set(i, data.get(i).getY());
+            }
+            data.add(new PointValue(data.size(), value)); // 添加新数据，X值还是最大值
+
+            // 修改旧坐标的Label和Value，Label根据次数累加，而Value则保持0-最大值
+            for (int i = 0; i < MAX_POINTS_COUNT - 1; i++) {
+                char[] xLabel = axisXLabels.get(i).getLabelAsChars();
+                axisXLabels.get(i).setValue(i).setLabel(String.valueOf(xLabel));
+            }
+            axisXLabels.add(new AxisValue(axisXLabels.size()).setLabel(String.valueOf(times)));
+        } else {
+            data.add(new PointValue(times, value));
+            axisXLabels.add(new AxisValue(times).setLabel(String.valueOf(times)).setValue(times));
         }
-        axisY.setHasLines(true);
-        axisY.setValues(yAxisLabels);
 
-        axisX.setValues(xAxisLabels);
-        dataLine.setValues(data); // 添加数据线的数据
+        line.setValues(data); // 设置数据线的新值
+        line.setCubic(true); // 设置数据线平滑
+        line.setFilled(true); // 设置数据线填充面积
+        line.setAreaTransparency(CHART_TRANSPARENCY); // 设置填充面积的透明度
+        line.setHasLabels(true); // 在数据线上显示数据值
+        axisX.setValues(axisXLabels);
 
-        List<Line> lines = new ArrayList<Line>(); // 创建数据线的集合
-        lines.add(dataLine);
-        LineChartData lineData = new LineChartData(lines); // 创建数据线对象
-        lineData.setAxisXBottom(axisX); // 设置X轴坐标内容
-        lineData.setAxisYLeft(axisY);
+        List<Line> lines = new ArrayList<Line>();
+        lines.add(line);
+        LineChartData lineChartData = new LineChartData(lines);
+        lineChartData.setAxisYLeft(axisY);
+        lineChartData.setAxisXBottom(axisX);
+        lineChartData.setBaseValue(Float.NEGATIVE_INFINITY);
+        lineChartData.setValueLabelBackgroundEnabled(false);
+        lineChartData.setValueLabelsTextColor(line.getColor());
+        chart.setLineChartData(lineChartData);
 
-        chart.setLineChartData(lineData); // 在图表中设置数据
-
-        Viewport port = new Viewport(); // 创建图表的视口
-        port.top = 100;//Y轴上限，固定(不固定上下限的话，Y轴坐标值可自适应变化)
-        port.bottom = 0;//Y轴下限，固定
-        port.left = newIndex - 10;//X轴左边界，变化
-        port.right = newIndex;//X轴右边界，变化
-
-        chart.setCurrentViewport(port);
-//        chart.setMaximumViewport(port);
+        Viewport v = new Viewport(chart.getCurrentViewport());
+        v.bottom = 0;
+        v.top = Y_AXIS_MAX_VALUE;
+        v.left = 0;
+        v.right = MAX_POINTS_COUNT - 1;
+        chart.setMaximumViewport(v);
+        chart.setCurrentViewport(v);
     }
 
     private int getRandomValue(int begin, int end) {
@@ -335,8 +397,6 @@ public class MainActivity extends AppCompatActivity {
             } catch (IOException e) {
                 e.printStackTrace();
             }
-
-
         }
     }
 }

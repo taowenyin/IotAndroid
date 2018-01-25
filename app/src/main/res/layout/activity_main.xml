@@ -50,6 +50,15 @@
                 android:background="@android:color/transparent"
                 android:scaleType="fitCenter"/>
 
+            <ImageButton
+                android:id="@+id/server_clear_btn"
+                android:layout_width="@dimen/delete_btn_size"
+                android:layout_height="@dimen/delete_btn_size"
+                android:layout_marginBottom="@dimen/btn_margin"
+                android:src="@drawable/clear"
+                android:background="@android:color/transparent"
+                android:scaleType="fitCenter"/>
+
             <RadioGroup
                 android:id="@+id/server_data_type"
                 android:layout_width="wrap_content"
